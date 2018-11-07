@@ -4,7 +4,7 @@ author: "Jiabei Wang"
 date: "2018???11???4???"
 output: html_document
 ---
-
+## Problem 1
 ```{r}
 library(tidyverse)
 library(readxl)
@@ -13,16 +13,31 @@ library(purrr)
 set.seed(1)
 file_names =list.files(path = "./data") 
 path = str_c("./data/", file_names)
-output = map(path, read_csv)
 total_table = tibble(x = file_names) %>% 
-  mutate(output = map(path, read_csv) )
-janitor::
-
-
+  mutate(output = map(path, read_csv) ) %>%
+unnest() %>%
+janitor::clean_names()%>% 
+separate(x, into = c("arm", "subject"), sep = "_") %>%
+  separate(subject, into = c("subject", "delete")) %>%
+select(-delete)%>%
+gather(key = week_of_study, value = Value, week_1:week_8) %>%
+separate(week_of_study, into = c("a", "week"), sep = "_")%>%
+  select(-a) %>%
+janitor::clean_names() 
+group_by(subject, arm)
+##make a spaghetti plot
+ggplot(total_table, aes(x = week, y = value, group = (arm:subject), color = subject)) + 
+    geom_line() + 
+    theme(legend.position = "bottom")
 
 ```
 
+## Problem 2
+```{r}
 
+```
+
+##
 ## R Markdown
 
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
