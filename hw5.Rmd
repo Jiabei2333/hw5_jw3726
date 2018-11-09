@@ -1,8 +1,8 @@
 ---
 title: "hw5"
 author: "Jiabei Wang"
-date: "2018???11???4???"
-output: html_document
+date: "11/1/2018"
+output: github_document
 ---
 ## Problem 1
 ```{r}
@@ -23,37 +23,92 @@ select(-delete)%>%
 gather(key = week_of_study, value = Value, week_1:week_8) %>%
 separate(week_of_study, into = c("a", "week"), sep = "_")%>%
   select(-a) %>%
-janitor::clean_names() 
+janitor::clean_names()%>%
+  mutate(subject = as.factor(subject), arm = as.factor(arm)) %>%
 group_by(subject, arm)
 ##make a spaghetti plot
-ggplot(total_table, aes(x = week, y = value, group = (arm:subject), color = subject)) + 
+ggplot(total_table, aes(x = week, y = value, group = (arm:subject), color = arm)) + 
     geom_line() + 
-    theme(legend.position = "bottom")
+    theme(legend.position = "bottom") + labs(title = "Longitudial Plot",
+    x = "Week",
+    y = "Observations on Value"
+  ) 
 
 ```
+From the spaghetti plot, the control and experiment arm have approximately same observations on value, but after following up, the value of experimental group has an obvious increasing trend while the control group maintain almost unchanged. 
 
 ## Problem 2
 ```{r}
+homicides_data = read_csv(file = "./data2/homicide-data.csv")%>% 
+mutate(city_state = paste(city, state)) %>%
+select(-city) %>% 
+  select(-state)
+```
+The raw data contains `r nrow(homicides_data)` observations, and it contains `r ncol(homicides_data)` variables. Homicides in 50 US cities are recorded in this dataset, 
+
+```{r}
+homicides_data %>%
+group_by(city_state, disposition) %>%
+group_by(disposition) %>%
+  summarize(n = n())
+```
+
+```{r}
+library(broom)
+city_homicides = read_csv(file = "./data2/homicide-data.csv")%>% 
+mutate(city_state = paste(city, state)) %>%
+select(-city, -state) %>%
+group_by(city_state, disposition)%>%
+  summarize(n = n()) %>%
+spread(key = disposition, value = n) %>%
+  janitor::clean_names() %>%
+  replace(is.na(.),0)%>%
+mutate(unsolved_homicides = closed_without_arrest + open_no_arrest) %>%
+mutate(total = unsolved_homicides + closed_by_arrest) %>%
+select(-closed_by_arrest, -closed_without_arrest,-open_no_arrest ) 
 
 ```
 
-##
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r}
+baltimore = city_homicides %>%
+  filter(city_state =="Baltimore MD")
+prop.test_baltimore = prop.test(baltimore$unsolved_homicides, baltimore$total, correct = FALSE)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+broom::tidy(prop.test_baltimore) [,c(1,5,6)]
+# select(estimate, conf.low, conf.high)
 ```
 
-## Including Plots
+```{r}
+prop.testp = function(a){
+ b = prop.test(a$unsolved_homicides, a$total) 
+  broom::tidy(b) [,c(1,5,6)]
+  } 
 
-You can also embed plots, for example:
+prop.testp(city_homicides[1,])
+output = 
+  city_homicides %>%
+  nest(city_state, unsolved_homicides:total) %>% 
+  mutate(prop = map(data,  prop.testp )) %>% 
+  unnest() %>%
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+  mutate(city_state = fct_reorder(factor(city_state),estimate)) 
+  
+  ggplot(output, aes(x = city_state, y = estimate, color = city_state)) + 
+  geom_point() + 
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) +  
+    theme(text = element_text(size = 6), 
+          axis.text.x = element_text(angle = 60),
+          legend.key.size= unit(0.05,"cm")) +
+
+    labs(title = "Estimate and CI Across Cities",
+    x = "city_state",
+    y = "estimate"
+  ) 
+
+
+  
+  
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
